@@ -1,0 +1,32 @@
+{
+    "20243120085": {
+        "sid": "20243120085",
+        "name": "Mohammad Kazim",
+        "age": 22,
+        "major": "Software",
+        "grades": [
+            45
+        ]
+    },
+    "20243120100": {
+        "sid": "20243120100",
+        "name": "Rony",
+        "age": 21,
+        "major": "Software",
+        "grades": []
+    },
+    "20243120081": {
+        "sid": "20243120081",
+        "name": "Alizada  Mohammad",
+        "age": 23,
+        "major": "Software",
+        "grades": []
+    },
+    "20243120087": {
+        "sid": "20243120087",
+        "name": "Ali Ahmad",
+        "age": 25,
+        "major": "Right",
+        "grades": []
+    }
+}

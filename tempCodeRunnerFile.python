@@ -1,0 +1,241 @@
+# ==============================
+# GUI INTERFACE (NEW ADDITION)
+# ==============================
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+import re
+
+class StudentAppGUI:
+    def __init__(self, root, manager):
+        self.root = root
+        self.manager = manager
+        self.root.title("Student Management System")
+        self.root.geometry("800x600")
+        
+        self.create_widgets()
+        self.refresh_list()
+    
+    def create_widgets(self):
+        # Frame for student list
+        list_frame = ttk.LabelFrame(self.root, text="Student List", padding=10)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Treeview for student list
+        columns = ("ID", "Name", "Age", "Major", "Avg Grade")
+        self.tree = ttk.Treeview(list_frame, columns=columns, show="headings", height=15)
+        
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=150)
+        
+        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Frame for controls
+        control_frame = ttk.Frame(self.root)
+        control_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        # Buttons
+        ttk.Button(control_frame, text="Add Student", command=self.open_add_dialog).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Remove Selected", command=self.remove_student).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Add Grade", command=self.open_grade_dialog).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Refresh", command=self.refresh_list).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Export CSV", command=self.export_csv).pack(side=tk.LEFT, padx=5)
+        ttk.Button(control_frame, text="Exit", command=self.root.quit).pack(side=tk.RIGHT, padx=5)
+    
+    def refresh_list(self):
+        # Clear current items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Add students to treeview
+        for sid, student in self.manager.students.items():
+            avg = student.average()
+            self.tree.insert("", tk.END, values=(
+                student.sid, student.name, student.age, 
+                student.major, f"{avg:.2f}" if avg > 0 else "N/A"
+            ))
+    
+    def open_add_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Add New Student")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Form fields
+        ttk.Label(dialog, text="Student ID:").grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+        id_entry = ttk.Entry(dialog)
+        id_entry.grid(row=0, column=1, padx=10, pady=10)
+        
+        ttk.Label(dialog, text="Name:").grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+        name_entry = ttk.Entry(dialog)
+        name_entry.grid(row=1, column=1, padx=10, pady=10)
+        
+        ttk.Label(dialog, text="Age:").grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
+        age_entry = ttk.Entry(dialog)
+        age_entry.grid(row=2, column=1, padx=10, pady=10)
+        
+        ttk.Label(dialog, text="Major:").grid(row=3, column=0, padx=10, pady=10, sticky=tk.W)
+        major_entry = ttk.Entry(dialog)
+        major_entry.grid(row=3, column=1, padx=10, pady=10)
+        
+        def add_student():
+            sid = id_entry.get().strip()
+            name = name_entry.get().strip()
+            age = age_entry.get().strip()
+            major = major_entry.get().strip()
+            
+            if not (sid and name and age and major):
+                messagebox.showerror("Error", "All fields are required!")
+                return
+            
+            if not age.isdigit():
+                messagebox.showerror("Error", "Age must be a number!")
+                return
+            
+            if sid in self.manager.students:
+                messagebox.showerror("Error", "Student ID already exists!")
+                return
+            
+            self.manager.add_student(sid, name, int(age), major)
+            self.manager.save_data()
+            self.refresh_list()
+            dialog.destroy()
+            messagebox.showinfo("Success", "Student added successfully!")
+        
+        ttk.Button(dialog, text="Add", command=add_student).grid(row=4, column=0, columnspan=2, pady=20)
+    
+    def remove_student(self):
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a student to remove")
+            return
+        
+        if messagebox.askyesno("Confirm", "Are you sure you want to remove this student?"):
+            item = self.tree.item(selection[0])
+            sid = item['values'][0]
+            self.manager.remove_student(sid)
+            self.manager.save_data()
+            self.refresh_list()
+            messagebox.showinfo("Success", "Student removed successfully!")
+    
+    def open_grade_dialog(self):
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Warning", "Please select a student to add grade")
+            return
+        
+        item = self.tree.item(selection[0])
+        sid = item['values'][0]
+        student = self.manager.students.get(sid)
+        
+        if not student:
+            return
+        
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Add Grade for {student.name}")
+        dialog.geometry("300x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        ttk.Label(dialog, text=f"Student: {student.name} ({sid})").pack(pady=10)
+        ttk.Label(dialog, text="Current Grades: " + ", ".join(map(str, student.grades))).pack(pady=5)
+        
+        ttk.Label(dialog, text="New Grade (0-100):").pack(pady=10)
+        grade_entry = ttk.Entry(dialog)
+        grade_entry.pack(pady=5)
+        
+        def add_grade():
+            try:
+                grade = float(grade_entry.get())
+                if student.add_grade(grade):
+                    self.manager.save_data()
+                    self.refresh_list()
+                    dialog.destroy()
+                    messagebox.showinfo("Success", "Grade added successfully!")
+                else:
+                    messagebox.showerror("Error", "Grade must be between 0 and 100!")
+            except ValueError:
+                messagebox.showerror("Error", "Please enter a valid number!")
+        
+        ttk.Button(dialog, text="Add Grade", command=add_grade).pack(pady=20)
+    
+    def export_csv(self):
+        filename = "students_export.csv"
+        self.manager.export_csv(filename)
+        messagebox.showinfo("Success", f"Data exported to {filename}")
+
+# ==============================
+# MAIN EXECUTION
+# ==============================
+
+def main():
+    # First, check login
+    auth = AuthSystem()
+    if not auth.login():
+        print("Login failed! Access denied.")
+        return
+    
+    # Create manager
+    manager = StudentManager()
+    
+    # Ask user which interface they want
+    print("\n=== Student Management System ===")
+    print("Choose interface:")
+    print("1. Console Interface")
+    print("2. Graphical Interface (GUI)")
+    
+    choice = input("Enter choice (1 or 2): ").strip()
+    
+    if choice == "2":
+        # Launch GUI
+        root = tk.Tk()
+        app = StudentAppGUI(root, manager)
+        root.mainloop()
+    else:
+        # Run console interface (your original code)
+        run_console_interface(manager)
+
+def run_console_interface(manager):
+    """Your original console interface logic"""
+    print("\nStudent Management System v1.0")
+    print("--- MAIN MENU ---")
+    print("1. Add Student")
+    print("2. Remove Student")
+    print("3. Update Student")
+    print("4. Add Grade")
+    print("5. Search Student")
+    print("6. List All Students")
+    print("7. Export to CSV")
+    print("8. Exit")
+    
+    while True:
+        try:
+            choice = input("\nChoose option (1-8): ").strip()
+            
+            if choice == "1":
+                # Your add student logic
+                pass
+            elif choice == "2":
+                # Your remove student logic
+                pass
+            # ... rest of your console menu
+            elif choice == "8":
+                print("Goodbye!")
+                break
+            else:
+                print("Invalid choice. Please try again.")
+                
+        except KeyboardInterrupt:
+            print("\n\nProgram interrupted. Goodbye!")
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
